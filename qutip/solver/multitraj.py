@@ -12,6 +12,7 @@ class _MTSystem:
     """
     Container for the operators of the solver.
     """
+
     def __init__(self, rhs):
         self.rhs = rhs
 
@@ -59,7 +60,9 @@ class MultiTrajSolver(Solver):
         "progress_bar": "text",
         "progress_kwargs": {"chunk_size": 10},
         "store_final_state": False,
-        "store_states": None,
+        "store_states": False,
+        "store_final_density_matrix": False,
+        "store_density_matricies": None,
         "keep_runs_results": False,
         "normalize_output": False,
         "method": "",

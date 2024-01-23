@@ -1,4 +1,5 @@
 """ Class for solve function results"""
+from typing import TypedDict, Union
 import numpy as np
 from ..core import Qobj, QobjEvo, expect, isket, ket2dm, qzero_like
 
@@ -16,6 +17,7 @@ class _QobjExpectEop:
     op : :obj:`.Qobj`
         The expectation value operator.
     """
+
     def __init__(self, op):
         self.op = op
 
@@ -46,6 +48,7 @@ class ExpectOp:
     op : object
         The original object used to define the e_op operation.
     """
+
     def __init__(self, op, f, append):
         self.op = op
         self._f = f
@@ -70,6 +73,7 @@ class _BaseResult:
     """
     Common method for all ``Result``.
     """
+
     def __init__(self, options, *, solver=None, stats=None):
         self.solver = solver
         if stats is None:
@@ -116,6 +120,11 @@ class _BaseResult:
         """
         self._state_processors.append(f)
         self._state_processors_require_copy |= requires_copy
+
+
+class ResultOptions(TypedDict):
+    store_states: bool
+    store_final_state: bool
 
 
 class Result(_BaseResult):
@@ -199,7 +208,17 @@ class Result(_BaseResult):
     options : dict
         The options for this result class.
     """
-    def __init__(self, e_ops, options, *, solver=None, stats=None, **kw):
+    options: ResultOptions
+
+    def __init__(
+        self,
+        e_ops,
+        options: ResultOptions,
+        *,
+        solver=None,
+        stats=None,
+        **kw,
+    ):
         super().__init__(options, solver=solver, stats=stats)
         raw_ops = self._e_ops_to_dict(e_ops)
         self.e_data = {k: [] for k in raw_ops}
@@ -251,7 +270,7 @@ class Result(_BaseResult):
         if store_states:
             self.add_processor(self._store_state, requires_copy=True)
 
-        if store_states or store_final_state:
+        if store_final_state:
             self.add_processor(self._store_final_state, requires_copy=True)
 
     def _store_state(self, t, state):
@@ -333,6 +352,14 @@ class Result(_BaseResult):
     @property
     def expect(self):
         return [np.array(e_op) for e_op in self.e_data.values()]
+
+
+class MultiTrajResultOptions(TypedDict):
+    store_states: bool
+    store_final_state: bool
+    store_density_matricies: Union[bool, None]
+    store_final_density_matrix: bool
+    keep_runs_results: bool
 
 
 class MultiTrajResult(_BaseResult):
@@ -455,7 +482,18 @@ class MultiTrajResult(_BaseResult):
     options : :obj:`~SolverResultsOptions`
         The options for this result class.
     """
-    def __init__(self, e_ops, options, *, solver=None, stats=None, **kw):
+
+    options: MultiTrajResultOptions
+
+    def __init__(
+        self,
+        e_ops,
+        options: MultiTrajResultOptions,
+        *,
+        solver=None,
+        stats=None,
+        **kw,
+    ):
         super().__init__(options, solver=solver, stats=stats)
         self._raw_ops = self._e_ops_to_dict(e_ops)
 
@@ -464,8 +502,9 @@ class MultiTrajResult(_BaseResult):
         self.num_trajectories = 0
         self.seeds = []
 
-        self._sum_states = None
-        self._sum_final_states = None
+        self._sum_density_matrix = None
+        self._final_states = []
+        self._sum_final_density_matrix = None
         self._sum_expect = None
         self._sum2_expect = None
         self._target_tols = None
@@ -489,12 +528,13 @@ class MultiTrajResult(_BaseResult):
         """
         self.times = trajectory.times
 
-        if trajectory.states:
-            self._sum_states = [qzero_like(self._to_dm(state))
-                                for state in trajectory.states]
-        if trajectory.final_state:
+        if trajectory.states and self.options["store_density_matricies"]:
+            self._sum_density_matrix = [qzero_like(self._to_dm(state))
+                                        for state in trajectory.states]
+        store_final_density_matrix = self.options["store_final_density_matrix"]
+        if trajectory.final_state and store_final_density_matrix:
             state = trajectory.final_state
-            self._sum_final_states = qzero_like(self._to_dm(state))
+            self._sum_final_density_matrix = qzero_like(self._to_dm(state))
 
         self._sum_expect = [
             np.zeros_like(expect) for expect in trajectory.expect
@@ -518,15 +558,18 @@ class MultiTrajResult(_BaseResult):
     def _store_trajectory(self, trajectory):
         self.trajectories.append(trajectory)
 
-    def _reduce_states(self, trajectory):
-        self._sum_states = [
+    def _reduce_density_matrix(self, trajectory):
+        self._sum_density_matrix = [
             accu + self._to_dm(state)
             for accu, state
-            in zip(self._sum_states, trajectory.states)
+            in zip(self._sum_density_matrix, trajectory.states)
         ]
 
     def _reduce_final_state(self, trajectory):
-        self._sum_final_states += self._to_dm(trajectory.final_state)
+        self._final_states.append(trajectory.final_state)
+
+    def _reduce_final_density_matrix(self, trajectory):
+        self._sum_final_density_matrix += self._to_dm(trajectory.final_state)
 
     def _reduce_expect(self, trajectory):
         """
@@ -602,21 +645,25 @@ class MultiTrajResult(_BaseResult):
         self.num_trajectories = 0
         self._target_ntraj = None
 
-        store_states = self.options['store_states']
-        store_final_state = self.options['store_final_state']
-        store_traj = self.options['keep_runs_results']
+        store_density_matricies = self.options['store_density_matricies']
+        store_final_matrix = self.options['store_final_density_matrix']
+        store_trajectory = (self.options['keep_runs_results']
+                            or self.options['store_states'])
+        store_final_state = self.options["store_final_state"]
 
         self.add_processor(self._increment_traj)
-        if store_traj:
+        if store_trajectory:
             self.add_processor(self._store_trajectory)
-        if store_states is None:
-            store_states = len(self._raw_ops) == 0
-        if store_states:
-            self.add_processor(self._reduce_states)
-        if store_states or store_final_state:
-            self.add_processor(self._reduce_final_state)
+        if store_density_matricies is None:
+            store_density_matricies = len(self._raw_ops) == 0
+        if store_density_matricies:
+            self.add_processor(self._reduce_density_matrix)
+        if store_density_matricies or store_final_matrix:
+            self.add_processor(self._reduce_final_density_matrix)
         if self._raw_ops:
             self.add_processor(self._reduce_expect)
+        if not store_trajectory and store_final_state:
+            self.add_processor(self._reduce_final_state)
 
         self._early_finish_check = self._no_end
         self.stats['end_condition'] = 'unknown'
@@ -713,46 +760,42 @@ class MultiTrajResult(_BaseResult):
             return None
 
     @property
-    def average_states(self):
-        """
-        States averages as density matrices.
-        """
-        if self._sum_states is None:
-            return None
-        return [final / self.num_trajectories for final in self._sum_states]
-
-    @property
     def states(self):
         """
         Runs final states if available, average otherwise.
         """
-        return self.runs_states or self.average_states
+        return self.runs_states
 
     @property
-    def runs_final_states(self):
+    def final_states(self):
         """
         Last states of each trajectories.
         """
         if self.trajectories and self.trajectories[0].final_state:
             return [traj.final_state for traj in self.trajectories]
+        if self._final_states:
+            return self._final_states
         else:
             return None
 
     @property
-    def average_final_state(self):
+    def density_matricies(self):
+        """
+        States averages as density matrices.
+        """
+        if self._sum_density_matrix is None:
+            return None
+        return [final / self.num_trajectories
+                for final in self._sum_density_matrix]
+
+    @property
+    def final_density_matrix(self):
         """
         Last states of each trajectories averaged into a density matrix.
         """
-        if self._sum_final_states is None:
+        if self._sum_final_density_matrix is None:
             return None
-        return self._sum_final_states / self.num_trajectories
-
-    @property
-    def final_state(self):
-        """
-        Runs final states if available, average otherwise.
-        """
-        return self.runs_final_states or self.average_final_state
+        return self._sum_final_density_matrix / self.num_trajectories
 
     @property
     def average_expect(self):
@@ -783,7 +826,7 @@ class MultiTrajResult(_BaseResult):
         """
         N = int(N) or len(self.times)
         N = len(self.times) if N > len(self.times) else N
-        states = self.average_states
+        states = self.density_matricies
         if states is not None:
             return sum(states[-N:]) / N
         else:
@@ -808,10 +851,10 @@ class MultiTrajResult(_BaseResult):
         lines.append(f"  Number of e_ops: {len(self.e_ops)}")
         if self.states:
             lines.append("  States saved.")
-        elif self.final_state is not None:
-            lines.append("  Final state saved.")
+        elif self.final_states is not None:
+            lines.append("  Final states saved.")
         else:
-            lines.append("  State not saved.")
+            lines.append("  States not saved.")
         lines.append(f"  Number of trajectories: {self.num_trajectories}")
         if self.trajectories:
             lines.append("  Trajectories saved.")
@@ -831,19 +874,26 @@ class MultiTrajResult(_BaseResult):
                              solver=self.solver, stats=self.stats)
         if self.trajectories and other.trajectories:
             new.trajectories = self.trajectories + other.trajectories
+        if self._final_states is not None and other._final_states is not None:
+            new._final_states = self._final_states + other._final_states
         new.num_trajectories = self.num_trajectories + other.num_trajectories
         new.times = self.times
         new.seeds = self.seeds + other.seeds
 
-        if self._sum_states is not None and other._sum_states is not None:
-            new._sum_states = self._sum_states + other._sum_states
+        if (self._sum_density_matrix is not None
+                and other._sum_density_matrix is not None):
+            new._sum_density_matrix = (
+                self._sum_density_matrix
+                + other._sum_density_matrix
+            )
 
         if (
-            self._sum_final_states is not None
-            and other._sum_final_states is not None
+            self._sum_final_density_matrix is not None
+            and other._sum_final_density_matrix is not None
         ):
-            new._sum_final_states = (
-                self._sum_final_states + other._sum_final_states
+            new._sum_final_density_matrix = (
+                self._sum_final_density_matrix
+                + other._sum_final_density_matrix
             )
         new._target_tols = None
 
@@ -968,7 +1018,8 @@ class McResult(MultiTrajResult):
             for t, which in collapses:
                 cols[which].append(t)
         mesurement = [
-            np.histogram(cols[i], tlist)[0] / np.diff(tlist) / self.num_trajectories
+            np.histogram(cols[i], tlist)[0] /
+            np.diff(tlist) / self.num_trajectories
             for i in range(self.num_c_ops)
         ]
         return mesurement
@@ -998,6 +1049,7 @@ class McResultImprovedSampling(McResult, MultiTrajResult):
     using the improved sampling algorithm, which samples the no-jump trajectory
     first and then only samples jump trajectories afterwards.
     """
+
     def __init__(self, e_ops, options, **kw):
         MultiTrajResult.__init__(self, e_ops=e_ops, options=options, **kw)
         self._sum_expect_no_jump = None
@@ -1012,7 +1064,7 @@ class McResultImprovedSampling(McResult, MultiTrajResult):
 
         self.no_jump_prob = None
 
-    def _reduce_states(self, trajectory):
+    def _reduce_density_matrix(self, trajectory):
         if self.num_trajectories == 1:
             self._sum_states_no_jump = [
                 accu + self._to_dm(state)
@@ -1026,7 +1078,7 @@ class McResultImprovedSampling(McResult, MultiTrajResult):
                 in zip(self._sum_states_jump, trajectory.states)
             ]
 
-    def _reduce_final_state(self, trajectory):
+    def _reduce_final_density_matrix(self, trajectory):
         dm_final_state = self._to_dm(trajectory.final_state)
         if self.num_trajectories == 1:
             self._sum_final_states_no_jump += dm_final_state
@@ -1041,14 +1093,14 @@ class McResultImprovedSampling(McResult, MultiTrajResult):
     def _add_first_traj(self, trajectory):
         super()._add_first_traj(trajectory)
         if trajectory.states:
-            del self._sum_states
+            del self._sum_density_matrix
             self._sum_states_no_jump = [qzero_like(self._to_dm(state))
                                         for state in trajectory.states]
             self._sum_states_jump = [qzero_like(self._to_dm(state))
                                      for state in trajectory.states]
         if trajectory.final_state:
             state = trajectory.final_state
-            del self._sum_final_states
+            del self._sum_final_density_matrix
             self._sum_final_states_no_jump = qzero_like(self._to_dm(state))
             self._sum_final_states_jump = qzero_like(self._to_dm(state))
         self._sum_expect_jump = [
@@ -1105,7 +1157,7 @@ class McResultImprovedSampling(McResult, MultiTrajResult):
                 self.runs_e_data[k].append(trajectory.e_data[k])
 
     @property
-    def average_states(self):
+    def density_matricies(self):
         """
         States averages as density matrices.
         """
@@ -1118,7 +1170,7 @@ class McResultImprovedSampling(McResult, MultiTrajResult):
                 zip(self._sum_states_no_jump, self._sum_states_jump)]
 
     @property
-    def average_final_state(self):
+    def final_density_matrix(self):
         """
         Last states of each trajectory averaged into a density matrix.
         """

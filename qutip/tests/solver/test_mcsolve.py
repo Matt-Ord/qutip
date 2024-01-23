@@ -197,14 +197,14 @@ def test_states_outputs(keep_runs_results, improved_sampling):
                             'map': 'serial',
                             "improved_sampling": improved_sampling})
 
-    assert len(data.average_states) == len(times)
-    assert isinstance(data.average_states[0], qutip.Qobj)
-    assert data.average_states[0].norm() == pytest.approx(1.)
-    assert data.average_states[0].isoper
+    assert len(data.density_matricies) == len(times)
+    assert isinstance(data.density_matricies[0], qutip.Qobj)
+    assert data.density_matricies[0].norm() == pytest.approx(1.)
+    assert data.density_matricies[0].isoper
 
-    assert isinstance(data.average_final_state, qutip.Qobj)
-    assert data.average_final_state.norm() == pytest.approx(1.)
-    assert data.average_final_state.isoper
+    assert isinstance(data.final_density_matrix, qutip.Qobj)
+    assert data.final_density_matrix.norm() == pytest.approx(1.)
+    assert data.final_density_matrix.isoper
 
     assert isinstance(data.photocurrent[0][1], float)
     assert isinstance(data.photocurrent[1][1], float)
@@ -218,10 +218,10 @@ def test_states_outputs(keep_runs_results, improved_sampling):
         assert data.runs_states[0][0].norm() == pytest.approx(1.)
         assert data.runs_states[0][0].isket
 
-        assert len(data.runs_final_states) == ntraj
-        assert isinstance(data.runs_final_states[0], qutip.Qobj)
-        assert data.runs_final_states[0].norm() == pytest.approx(1.)
-        assert data.runs_final_states[0].isket
+        assert len(data.final_states) == ntraj
+        assert isinstance(data.final_states[0], qutip.Qobj)
+        assert data.final_states[0].norm() == pytest.approx(1.)
+        assert data.final_states[0].isket
 
     assert isinstance(data.steady_state(), qutip.Qobj)
     assert data.steady_state().norm() == pytest.approx(1.)

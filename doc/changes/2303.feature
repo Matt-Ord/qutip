@@ -1,0 +1,1 @@
+Add `store_density_matricies` option to `MultiTrajResult`

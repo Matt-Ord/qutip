@@ -231,7 +231,8 @@ class TestMultiTrajResult:
             [np.arange(5), np.ones(5)],
             id="dict-e-ops",
         ),
-        pytest.param(qutip.QobjEvo(qutip.num(5)), [np.arange(5)], id="qobjevo"),
+        pytest.param(qutip.QobjEvo(qutip.num(5)), [
+                     np.arange(5)], id="qobjevo"),
         pytest.param(e_op_num, [np.arange(5)], id="function"),
         pytest.param(
             [qutip.num(5), e_op_num],
@@ -276,8 +277,8 @@ class TestMultiTrajResult:
         np.testing.assert_allclose(np.array(m_res.times), np.arange(N))
 
         for i in range(N):
-            assert m_res.average_states[i] == qutip.fock_dm(N, i)
-        assert m_res.average_final_state == qutip.fock_dm(N, N-1)
+            assert m_res.density_matricies[i] == qutip.fock_dm(N, i)
+        assert m_res.final_density_matrix == qutip.fock_dm(N, N-1)
 
         if keep_runs_results:
             assert len(m_res.runs_states) == 25
@@ -286,7 +287,7 @@ class TestMultiTrajResult:
                 expected = qutip.basis(N, N-1)
                 if dm:
                     expected = expected.proj()
-                assert m_res.runs_final_states[i] == expected
+                assert m_res.final_states[i] == expected
 
     @pytest.mark.parametrize('keep_runs_results', [True, False])
     @pytest.mark.parametrize('targettol', [
@@ -346,7 +347,7 @@ class TestMultiTrajResult:
         np.testing.assert_allclose(merged_res.average_expect[0],
                                    np.arange(10), rtol=0.1)
         np.testing.assert_allclose(
-            np.diag(sum(merged_res.average_states).full()),
+            np.diag(sum(merged_res.density_matricies).full()),
             np.ones(N),
             rtol=0.1
         )

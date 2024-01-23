@@ -1,14 +1,15 @@
 __all__ = ["smesolve", "SMESolver", "ssesolve", "SSESolver"]
 
+from typing import TypedDict
 from .sode.ssystem import *
-from .result import MultiTrajResult, Result, ExpectOp
+from .result import MultiTrajResult, Result, ExpectOp, MultiTrajResultOptions
 from .multitraj import MultiTrajSolver
-from .. import Qobj, QobjEvo, liouvillian, lindblad_dissipator
+from .. import Qobj, QobjEvo
 import numpy as np
-from collections.abc import Iterable
 from functools import partial
 from .solver_base import _solver_deprecation
 from ._feedback import _QobjFeedback, _DataFeedback, _WeinerFeedback
+
 
 class StochasticTrajResult(Result):
     def _post_init(self, m_ops=(), dw_factor=(), heterodyne=False):
@@ -85,7 +86,13 @@ class StochasticTrajResult(Result):
         return m_expect + noise
 
 
+class StochasticResultOptions(MultiTrajResultOptions, TypedDict):
+    store_measurement: bool
+
+
 class StochasticResult(MultiTrajResult):
+    options: StochasticResultOptions
+
     def _post_init(self):
         super()._post_init()
 
@@ -497,7 +504,9 @@ class StochasticSolver(MultiTrajSolver):
         "progress_bar": "text",
         "progress_kwargs": {"chunk_size": 10},
         "store_final_state": False,
-        "store_states": None,
+        "store_states": False,
+        "store_final_density_matrix": False,
+        "store_density_matricies": None,
         "store_measurement": False,
         "keep_runs_results": False,
         "normalize_output": False,
@@ -782,7 +791,9 @@ class SMESolver(StochasticSolver):
         "progress_bar": "text",
         "progress_kwargs": {"chunk_size": 10},
         "store_final_state": False,
-        "store_states": None,
+        "store_states": False,
+        "store_final_density_matrix": False,
+        "store_density_matricies": None,
         "store_measurement": False,
         "keep_runs_results": False,
         "normalize_output": False,
@@ -825,7 +836,9 @@ class SSESolver(StochasticSolver):
         "progress_bar": "text",
         "progress_kwargs": {"chunk_size": 10},
         "store_final_state": False,
-        "store_states": None,
+        "store_states": False,
+        "store_final_density_matrix": False,
+        "store_density_matricies": None,
         "store_measurement": False,
         "keep_runs_results": False,
         "normalize_output": False,

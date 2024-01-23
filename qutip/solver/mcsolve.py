@@ -167,6 +167,7 @@ class _MCSystem(_MTSystem):
     """
     Container for the operators of the solver.
     """
+
     def __init__(self, rhs, c_ops, n_ops):
         self.rhs = rhs
         self.c_ops = c_ops
@@ -247,8 +248,8 @@ class MCIntegrator:
             self.target_norm = 0.0
         else:
             self.target_norm = (
-                    self._generator.random() * (1 - jump_prob_floor)
-                    + jump_prob_floor
+                self._generator.random() * (1 - jump_prob_floor)
+                + jump_prob_floor
             )
         self._integrator.set_state(t, state0)
         self._is_set = True
@@ -410,7 +411,9 @@ class MCSolver(MultiTrajSolver):
         "progress_bar": "text",
         "progress_kwargs": {"chunk_size": 10},
         "store_final_state": False,
-        "store_states": None,
+        "store_states": False,
+        "store_final_density_matrix": False,
+        "store_density_matricies": None,
         "keep_runs_results": False,
         "method": "adams",
         "map": "serial",
