@@ -230,7 +230,7 @@ class Result(_BaseResult):
 
         self.times = []
         self.states = []
-        self.final_state = None
+        self._final_state = None
 
         self._post_init(**kw)
 
@@ -265,12 +265,10 @@ class Result(_BaseResult):
         store_states = self.options['store_states']
         store_final_state = self.options['store_final_state']
 
-        if store_states is None:
-            store_states = len(self.e_ops) == 0
-        if store_states:
+        if store_states or len(self.e_ops) == 0:
             self.add_processor(self._store_state, requires_copy=True)
 
-        if store_final_state:
+        if store_final_state and not store_states:
             self.add_processor(self._store_final_state, requires_copy=True)
 
     def _store_state(self, t, state):
@@ -278,8 +276,8 @@ class Result(_BaseResult):
         self.states.append(state)
 
     def _store_final_state(self, t, state):
-        """ Processor that writes the state to ``.final_state``. """
-        self.final_state = state
+        """ Processor that writes the state to ``._final_state``. """
+        self._final_state = state
 
     def _pre_copy(self, state):
         """ Return a copy of the state. Sub-classes may override this to
@@ -352,6 +350,14 @@ class Result(_BaseResult):
     @property
     def expect(self):
         return [np.array(e_op) for e_op in self.e_data.values()]
+    
+    @property
+    def final_state(self):
+        if self._final_state is not None:
+            return self._final_state
+        if self.states:
+            return self.states[-1]
+        return None
 
 
 class MultiTrajResultOptions(TypedDict):
@@ -510,7 +516,6 @@ class MultiTrajResult(_BaseResult):
         self._target_tols = None
 
         self.average_e_data = {}
-        self.e_data = {}
         self.std_e_data = {}
         self.runs_e_data = {}
 
@@ -550,11 +555,10 @@ class MultiTrajResult(_BaseResult):
             for k, avg_expect
             in zip(self._raw_ops, self._sum_expect)
         }
-        self.e_data = self.average_e_data
         if self.options['keep_runs_results']:
             self.runs_e_data = {k: [] for k in self._raw_ops}
-            self.e_data = self.runs_e_data
 
+        
     def _store_trajectory(self, trajectory):
         self.trajectories.append(trajectory)
 
@@ -658,7 +662,7 @@ class MultiTrajResult(_BaseResult):
             store_density_matricies = len(self._raw_ops) == 0
         if store_density_matricies:
             self.add_processor(self._reduce_density_matrix)
-        if store_density_matricies or store_final_matrix:
+        if store_final_matrix:
             self.add_processor(self._reduce_final_density_matrix)
         if self._raw_ops:
             self.add_processor(self._reduce_expect)
@@ -784,7 +788,13 @@ class MultiTrajResult(_BaseResult):
         States averages as density matrices.
         """
         if self._sum_density_matrix is None:
-            return None
+            if not( self.trajectories and self.trajectories[0].states):
+                return None
+            self._sum_density_matrix = [qzero_like(self._to_dm(state))
+                                        for state in self.trajectories[0].states]
+            for trajectory in self.trajectories:
+                self._reduce_density_matrix(trajectory)
+            
         return [final / self.num_trajectories
                 for final in self._sum_density_matrix]
 
@@ -793,8 +803,14 @@ class MultiTrajResult(_BaseResult):
         """
         Last states of each trajectories averaged into a density matrix.
         """
+        print(self._sum_final_density_matrix)
         if self._sum_final_density_matrix is None:
-            return None
+            print(self.density_matricies)
+            density_matricies = self.density_matricies
+            if not density_matricies:
+                
+                return None
+            return density_matricies[-1]
         return self._sum_final_density_matrix / self.num_trajectories
 
     @property
@@ -812,10 +828,27 @@ class MultiTrajResult(_BaseResult):
     @property
     def expect(self):
         return [np.array(val) for val in self.e_data.values()]
+    @property
+    def e_data(self):
+        if self.options['keep_runs_results']:
+            return self.runs_e_data
+        return self.average_e_data
+    
+    @staticmethod
+    def get_result_options( options:MultiTrajResultOptions )-> ResultOptions:
+        store_final_state = options["store_final_density_matrix"] or options["store_final_state"]
+        store_states = options["store_density_matricies"] or options["store_states"]or options["keep_runs_results"]
+        return {
+            "store_final_state":store_final_state,
+            "store_states":store_states
+        }
+    @property
+    def result_options(self) -> ResultOptions:
+        return self.get_result_options(self.options)
 
     def steady_state(self, N=0):
         """
-        Average the states of the last ``N`` times of every runs as a density
+        Average the density matricies of the last ``N`` times of every runs as a density
         matrix. Should converge to the steady state in the right circumstances.
 
         Parameters
@@ -911,13 +944,11 @@ class MultiTrajResult(_BaseResult):
             avg2 = new._sum2_expect[i] / new.num_trajectories
 
             new.average_e_data[k] = list(avg)
-            new.e_data = new.average_e_data
-
             new.std_e_data[k] = np.sqrt(np.abs(avg2 - np.abs(avg**2)))
 
-            if new.trajectories:
+            if self.runs_e_data:
                 new.runs_e_data[k] = self.runs_e_data[k] + other.runs_e_data[k]
-                new.e_data = new.runs_e_data
+        
 
         new.stats["run time"] += other.stats["run time"]
         new.stats['end_condition'] = "Merged results"

@@ -236,7 +236,7 @@ class MultiTrajSolver(Solver):
         return result
 
     def _initialize_run_one_traj(self, seed, state, tlist, e_ops):
-        result = self._trajectory_resultclass(e_ops, self.options)
+        result = self._trajectory_resultclass(e_ops, self._resultclass.get_result_options(self.options))
         generator = self._get_generator(seed)
         self._integrator.set_state(tlist[0], state, generator)
         result.add(tlist[0], self._restore_state(state, copy=False))
