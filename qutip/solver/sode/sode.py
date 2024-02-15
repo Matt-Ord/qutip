@@ -45,6 +45,7 @@ class SIntegrator(Integrator):
         keys, not the full options object passed to the solver. Options' keys
         included here will be supported by the :cls:SolverOdeOptions.
     """
+
     _is_set = False
     _stepper_options = []
 
@@ -70,8 +71,7 @@ class SIntegrator(Integrator):
         else:
             num_collapse = len(self.rhs.sc_ops)
             self.wiener = Wiener(
-                t, self.options["dt"], generator,
-                (self.N_dw, num_collapse)
+                t, self.options["dt"], generator, (self.N_dw, num_collapse)
             )
         self.rhs._register_feedback(self.wiener)
         opt = [self.options[key] for key in self._stepper_options]
@@ -112,8 +112,7 @@ class SIntegrator(Integrator):
             self.set_state(*state)
         if hard:
             raise NotImplementedError(
-                "Changing stochastic integrator "
-                "options is not supported."
+                "Changing stochastic integrator " "options is not supported."
             )
 
 
@@ -140,10 +139,7 @@ class _Explicit_Simple_Integrator(SIntegrator):
         if delta_t < 0:
             raise ValueError("Integration time, can't be negative.")
         elif delta_t < 0.5 * dt:
-            warnings.warn(
-                f"Step under minimum step ({dt}), skipped.",
-                RuntimeWarning
-            )
+            warnings.warn(f"Step under minimum step ({dt}), skipped.", RuntimeWarning)
             return self.t, self.state, np.zeros(self.N_dw)
 
         N, extra = np.divmod(delta_t, dt)
@@ -154,6 +150,8 @@ class _Explicit_Simple_Integrator(SIntegrator):
         dW = self.wiener.dW(self.t, N)
         self.state = self.step_func(self.t, self.state, dt, dW, N)
         self.t += dt * N
+
+        self.wiener.truncate_to(N)
 
         return self.t, self.state, np.sum(dW[:, 0, :], axis=0)
 

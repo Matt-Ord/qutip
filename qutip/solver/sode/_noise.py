@@ -7,6 +7,7 @@ class Wiener:
     """
     Wiener process.
     """
+
     def __init__(self, t0, dt, generator, shape):
         self.t0 = t0
         self.dt = dt
@@ -16,10 +17,8 @@ class Wiener:
         self.process = np.zeros((1,) + shape, dtype=float)
 
     def _extend(self, t):
-        N_new_vals = int((t - self.t_end + self.dt*0.01) // self.dt)
-        dW = self.generator.normal(
-            0, np.sqrt(self.dt), size=(N_new_vals,) + self.shape
-        )
+        N_new_vals = int((t - self.t_end + self.dt * 0.01) // self.dt)
+        dW = self.generator.normal(0, np.sqrt(self.dt), size=(N_new_vals,) + self.shape)
         W = self.process[-1, :, :] + np.cumsum(dW, axis=0)
         self.process = np.concatenate((self.process, W), axis=0)
         self.t_end = self.t0 + (self.process.shape[0] - 1) * self.dt
@@ -28,7 +27,12 @@ class Wiener:
         if t + N * self.dt > self.t_end:
             self._extend(t + N * self.dt)
         idx0 = int((t - self.t0 + self.dt * 0.01) // self.dt)
-        return np.diff(self.process[idx0:idx0 + N + 1, :, :], axis=0)
+        return np.diff(self.process[idx0 : idx0 + N + 1, :, :], axis=0)
+
+    def truncate_to(self, N: int):
+        idx0 = self.process.shape[0] - N
+        self.t0 += idx0 * self.dt
+        self.process = self.process[idx0:, :, :]
 
     def __call__(self, t):
         if t > self.t_end:

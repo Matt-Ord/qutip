@@ -1085,7 +1085,7 @@ cdef class QobjEvo:
     cpdef Data matmul_data(QobjEvo self, object t, Data state, Data out=None):
         """Compute ``out += self(t) @ state``"""
         t = self._prepare(t, state)
-        if len(self.elements) == 0:
+        if len(self.elements) == 1:
             return self.elements[0].matmul_data_t(t, state, out=out)
 
         if out is None and type(state) is Dense:
