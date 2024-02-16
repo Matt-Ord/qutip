@@ -302,7 +302,7 @@ dtype_types = list(qutip.data.to._str2type.values()) + list(qutip.data.to.dtypes
     (qutip.enr_thermal_dm, ([3, 3, 3], 4, 2)),
 ], ids=_id_func)
 def test_state_type(func, args, alias, dtype):
-    if(dtype == qutip.data.COO and (func == qutip.coherent_dm or func == qutip.fock_dm )):
+    if(dtype == qutip.data.COO):
         pytest.skip("Does not return the same dtype for COO")
         
     object = func(*args, dtype=alias)

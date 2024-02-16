@@ -8,6 +8,7 @@ __all__ = ['basis', 'qutrit_basis', 'coherent', 'coherent_dm', 'fock_dm',
 
 import itertools
 import numbers
+from typing import List, Union
 import warnings
 
 import numpy as np
@@ -17,7 +18,6 @@ import itertools
 from . import data as _data
 from .qobj import Qobj
 from .operators import jmat, displace, qdiags
-from .tensor import tensor
 from .. import settings
 
 
@@ -43,7 +43,7 @@ def _promote_to_zero_list(arg, length):
     raise TypeError("Dimensions must be an integer or list of integers.")
 
 
-def basis(dimensions, n=None, offset=None, *, dtype=None):
+def basis(dimensions: Union[int, List[int]], n=None, offset=None, *, dtype=None):
     """Generates the vector representation of a Fock state.
 
     Parameters

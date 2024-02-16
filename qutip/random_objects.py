@@ -483,7 +483,7 @@ def rand_ket(dimensions, density=1, distribution="haar", *,
     if N == 1:
         ket = rand_unitary(1, seed=generator)
     elif distribution == "haar":
-        ket = rand_unitary(N, density, "haar", seed=generator) @ basis(N, 0)
+        ket = rand_unitary(N, density, "haar", seed=generator) @ basis(int(N), 0)
     else:
         X = scipy.sparse.rand(N, 1, density, format='csr',
                               random_state=generator)
