@@ -10,7 +10,6 @@ cimport cython
 
 from cpython cimport mem
 
-import numbers
 import warnings
 
 import numpy as np
@@ -22,9 +21,8 @@ try:
 except ImportError:
     # The file data was renamed to _data from scipy 1.8.0
     from scipy.sparse._data import _data_matrix as scipy_data_matrix
-from scipy.linalg cimport cython_blas as blas
 
-from qutip.core.data cimport base, Dense, Dia
+from qutip.core.data cimport base, Dense, Dia, COO, coo
 from qutip.core.data.adjoint cimport adjoint_csr, transpose_csr, conj_csr
 from qutip.core.data.trace cimport trace_csr
 from qutip.core.data.tidyup cimport tidyup_csr
@@ -296,7 +294,7 @@ cpdef CSR copy_structure(CSR matrix):
     return out
 
 
-cpdef inline base.idxint nnz(CSR matrix) noexcept nogil:
+cpdef inline size_t nnz(CSR matrix) noexcept nogil:
     """Get the number of non-zero elements of a CSR matrix."""
     return matrix.row_index[matrix.shape[0]]
 
@@ -507,7 +505,7 @@ cpdef CSR sorted(CSR matrix):
     return out
 
 
-cpdef CSR empty(base.idxint rows, base.idxint cols, base.idxint size):
+cpdef CSR empty(base.idxint rows, base.idxint cols, size_t size):
     """
     Allocate an empty CSR matrix of the given shape, with space for `size`
     elements in the `data` and `col_index` arrays.
@@ -591,7 +589,7 @@ cpdef CSR from_dense(Dense matrix):
 
 cdef CSR from_coo_pointers(
     base.idxint *rows, base.idxint *cols, double complex *data,
-    base.idxint n_rows, base.idxint n_cols, base.idxint nnz, double tol=0
+    base.idxint n_rows, base.idxint n_cols, size_t nnz, double tol=0
 ):
     # Note that COO pointers may not be sorted in row-major order, and that
     # they may contain duplicate entries which should be implicitly summed.
@@ -645,7 +643,7 @@ cdef CSR from_coo_pointers(
 cpdef CSR from_dia(Dia matrix):
     cdef base.idxint col, diag, i, ptr=0
     cdef base.idxint nrows=matrix.shape[0], ncols=matrix.shape[1]
-    cdef base.idxint nnz = matrix.num_diag * min(matrix.shape)
+    cdef size_t nnz = matrix.num_diag * min(matrix.shape)
     cdef double complex[:] data = np.zeros(nnz, dtype=complex)
     cdef base.idxint[:] cols = np.zeros(nnz, dtype=idxint_dtype)
     cdef base.idxint[:] rows = np.zeros(nnz, dtype=idxint_dtype)
@@ -664,6 +662,11 @@ cpdef CSR from_dia(Dia matrix):
     return from_coo_pointers(&rows[0], &cols[0], &data[0], matrix.shape[0],
                              matrix.shape[1], nnz)
 
+cpdef CSR from_coo(COO matrix):
+    
+    cdef size_t nnz = coo.nnz(matrix)
+    return from_coo_pointers(&matrix.row_index[0], &matrix.col_index[0], &matrix.data[0], matrix.shape[0],
+                             matrix.shape[1], nnz)
 
 cdef inline base.idxint _diagonal_length(
     base.idxint offset, base.idxint n_rows, base.idxint n_cols,
@@ -746,7 +749,8 @@ cdef CSR diags_(
     cdef size_t n_diagonals = len(diagonals)
     if n_diagonals == 0:
         return zeros(n_rows, n_cols)
-    cdef base.idxint k, row, start_row, offset, nnz=0,
+    cdef base.idxint k, row, start_row, offset
+    cdef size_t nnz=0
     cdef base.idxint min_k=n_diagonals, max_k=n_diagonals
     cdef double complex value
     for k in range(n_diagonals):

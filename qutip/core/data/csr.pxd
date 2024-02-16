@@ -11,6 +11,7 @@ import numpy as np
 cimport numpy as cnp
 
 from qutip.core.data cimport base
+from qutip.core.data.coo cimport COO
 from qutip.core.data.dense cimport Dense
 from qutip.core.data.dia cimport Dia
 
@@ -152,17 +153,18 @@ cdef class Sorter:
 cpdef CSR fast_from_scipy(object sci)
 cpdef CSR copy_structure(CSR matrix)
 cpdef CSR sorted(CSR matrix)
-cpdef base.idxint nnz(CSR matrix) nogil
-cpdef CSR empty(base.idxint rows, base.idxint cols, base.idxint size)
+cpdef size_t nnz(CSR matrix) nogil
+cpdef CSR empty(base.idxint rows, base.idxint cols, size_t size)
 cpdef CSR empty_like(CSR other)
 cpdef CSR zeros(base.idxint rows, base.idxint cols)
 cpdef CSR identity(base.idxint dimension, double complex scale=*)
 
 cpdef CSR from_dense(Dense matrix)
 cdef CSR from_coo_pointers(base.idxint *rows, base.idxint *cols, double complex *data,
-                           base.idxint n_rows, base.idxint n_cols, base.idxint nnz,
+                           base.idxint n_rows, base.idxint n_cols, size_t nnz,
                            double tol=*)
 cpdef CSR from_dia(Dia matrix)
+cpdef CSR from_coo(COO matrix)
 
 cpdef CSR _from_csr_blocks(base.idxint[:] block_rows, base.idxint[:] block_cols, CSR[:] block_ops,
                           base.idxint n_blocks, base.idxint block_size)

@@ -5,11 +5,11 @@ cimport cython
 from libc.math cimport sqrt
 
 from qutip.core.data cimport Data, CSR, Dense, Dia
-from qutip.core.data cimport base
+from qutip.core.data cimport base, coo
 from .reshape import column_unstack
 
 __all__ = [
-    'trace', 'trace_csr', 'trace_dense', 'trace_dia',
+    'trace', 'trace_coo', 'trace_csr', 'trace_dense', 'trace_dia',
     'trace_oper_ket', 'trace_oper_ket_csr', 'trace_oper_ket_dense',
     'trace_oper_ket_dia', 'trace_oper_ket_data',
 ]
@@ -30,10 +30,19 @@ cdef int _check_shape_oper_ket(int N, Data matrix) except -1 nogil:
         ]))
     return 0
 
+cpdef double complex trace_coo(COO matrix) except * nogil:
+    _check_shape(matrix)
+    cdef size_t ptr
+    cdef double complex trace = 0
+    for ptr in range(coo.nnz(matrix)):
+        if matrix.col_index[ptr] == matrix.row_index[ptr]:
+            trace += matrix.data[ptr]
+    return trace
 
 cpdef double complex trace_csr(CSR matrix) except * nogil:
     _check_shape(matrix)
-    cdef size_t row, ptr
+    cdef base.idxint row
+    cdef size_t ptr
     cdef double complex trace = 0
     for row in range(matrix.shape[0]):
         for ptr in range(matrix.row_index[row], matrix.row_index[row + 1]):
@@ -119,6 +128,7 @@ trace = _Dispatcher(
 trace.__doc__ =\
     """Compute the trace (sum of digaonal elements) of a square matrix."""
 trace.add_specialisations([
+    (COO, trace_coo),
     (CSR, trace_csr),
     (Dia, trace_dia),
     (Dense, trace_dense),
